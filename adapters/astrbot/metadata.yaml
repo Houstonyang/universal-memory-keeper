@@ -1,0 +1,6 @@
+name: astrbot_plugin_universal_memory_keeper
+display_name: 通用来源记忆
+desc: 来源核验、版本更新、本人遗忘与解锁；需要独立的本地记忆服务
+version: v0.1.0
+author: Houstonyang
+repo: https://github.com/Houstonyang/universal-memory-keeper

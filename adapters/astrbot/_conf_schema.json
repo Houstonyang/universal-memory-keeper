@@ -1,0 +1,4 @@
+{
+  "url": {"description": "记忆服务地址", "type": "string", "default": "http://127.0.0.1:8765"},
+  "token": {"description": "与记忆服务一致的令牌，至少24字符", "type": "string", "default": ""}
+}
