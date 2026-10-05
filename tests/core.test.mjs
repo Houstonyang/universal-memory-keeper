@@ -7,7 +7,6 @@ import path from 'node:path';
 import { MemoryRuntime, jsonStores, scopeFor } from '../core/runtime.mjs';
 import { inferExpiry } from '../core/engine.mjs';
 import { normalizeSession } from '../adapters/koishi/normalize.mjs';
-import { normalizeEntry } from '../adapters/qq-agent/bridge.mjs';
 const base={framework:'fixture',platform:'qq',botId:'bot-openid',kind:'group',conversationId:'group-openid',senderId:'user-A',senderName:'A',timestamp:Date.UTC(2026,9,1),text:'',self:false,quoted:false,forwarded:false,media:[]};
 let serial=0;
 function setup(t) {
@@ -106,7 +105,4 @@ test('会话路径不由原平台ID拼接，避免路径遍历和分隔符碰撞
 test('Koishi 映射原ID、原时间和引用，不生成当前时间',()=> {
   const s={platform:'qq',selfId:'bot',userId:'A',channelId:'group',messageId:'uuid',isDirect:false,quote:{id:'quoted'},event:{timestamp:1790812800000,user:{}},elements:[{type:'text',attrs:{content:'原文'}}]};
   const e=normalizeSession(s);assert.equal(e.quoted,true);assert.equal(e.messageId,'uuid');assert.equal(e.timestamp,s.event.timestamp);assert.equal(e.text,'原文');
-});
-test('QQ Agent 桥保留真实消息ID与已存引用',()=> {
-  const e=normalizeEntry('group:123456',{mid:-123,senderId:'234567',ts:1790812800000,text:'原文',reply:{mid:456},media:[]},'345678');assert.equal(e.messageId,'-123');assert.equal(e.quoted,true);assert.equal(e.framework,'qq-agent');
 });

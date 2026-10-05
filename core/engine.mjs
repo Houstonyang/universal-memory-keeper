@@ -1,5 +1,5 @@
-/** 通用来源核验、事实版本与本人禁记策略；抽取自已验证的 QQ Agent 插件。 */
-// 策略只依赖注入的原消息/状态存储，不依赖 QQ Agent 文件路径。
+/** 通用来源核验、事实版本与本人禁记策略。 */
+// 策略通过注入的原消息与状态存储访问数据。
 import { normalizeMessage, validScope, validIdentity } from './contracts.mjs';
 import { randomUUID } from 'node:crypto';
 import { tokenize, normText } from './text.mjs';

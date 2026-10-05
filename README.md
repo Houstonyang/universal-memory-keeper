@@ -1,6 +1,6 @@
 # Universal Memory Keeper
 
-通用机器人记忆核心及框架适配器，**0.1.0 首版**。从 QQ Agent Memory Keeper 1.0.8 的来源策略抽取，核心不依赖 QQ Agent 配置、数字 QQ 号或宿主文件路径。
+通用机器人记忆核心及框架适配器，**0.1.0 首版**。核心独立运行，通过统一接口接入各机器人框架。
 
 提供本地 HTTP 服务和 Node 模块入口，Python 与 Node 机器人可共享同一核心。支持原消息来源、本人事实、新旧版本、遗忘禁记、本人解锁、过期和会话隔离。
 
@@ -12,7 +12,6 @@
 | NoneBot2 + OneBot v11 | 可加载插件、协议映射、`memory_for()` | 记录和命令；AI 插件需调用 `memory_for()` | 合成协议事件测试；真实联调待完成 |
 | Koishi 4 | 中间件、配置、`memoryFor()` | 记录和命令；AI 插件需调用 `memoryFor()` | 合成会话映射测试；真实联调待完成 |
 | QQ 官方机器人 | 腾讯 botpy 群、C2C、频道消息桥 | 在现有 SDK 回调调用 `memory_for()` | 合成 OpenID、时区与引用事件测试；真实联调待完成 |
-| QQ Agent | 本轮真实存档行的桥接接口 | 需在宿主钩子接入；现有专用插件可继续使用 | 合成存档映射测试 |
 
 这不是“下载后自动兼容任何机器人”的单一插件。AstrBot 插件、NoneBot 插件和 Koishi 插件的目录不同；没有统一 AI 钩子的框架还需在其 AI 插件中接一处调用。QQ 官方平台是协议，AstrBot 的 QQ 官方适配器可以先走 AstrBot 路线。
 
@@ -63,12 +62,12 @@ node --test tests/core.test.mjs tests/http.test.mjs
 python -B tests/test_adapters.py
 ```
 
-本仓库31项 Node 核心/HTTP/映射测试及13项 Python 检查（12项合成适配器检查、1项真实环回HTTP客户端检查）。测试不发真实 QQ 消息、不调用模型、不读取真实聊天。专用版原有180项检查不能直接当作通用版或其他框架的验证结果。
+本仓库30项 Node 核心/HTTP/映射测试及13项 Python 检查（12项合成适配器检查、1项真实环回HTTP客户端检查）。测试不发真实 QQ 消息、不调用模型、不读取真实聊天。
 
 源码入口、信任边界和存储契约见 [源码说明](docs/SOURCE-GUIDE.md)，实际验证记录见 [验证范围](docs/VALIDATION.md)。核心公开方法也可用于程序内接入，适配器是已认证事件与核心之间的桥。
 
-本仓库不包含 QQ Agent 主程序、真实聊天、真实记忆库、账号配置或 API 密钥。运行时数据和环境文件被 `.gitignore` 排除。
+本仓库不包含真实聊天、真实记忆库、账号配置或 API 密钥。运行时数据和环境文件被 `.gitignore` 排除。
 
-## 来源与许可证
+## 许可证
 
-MIT；保留 [Kondius/qq-agent](https://github.com/Kondius/qq-agent) 上游版权。来源策略抽取自专用插件，通用身份契约、HTTP 桥和框架适配器为本次新增。各框架本身遵循其各自许可证。
+本项目采用 MIT 许可证，版权与许可条款见 [LICENSE](LICENSE)。各框架本身遵循其各自许可证。

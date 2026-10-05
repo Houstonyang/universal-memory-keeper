@@ -62,10 +62,6 @@ async def on_group_at_message_create(self, message):
 
 `self.app_id` 是示例中的项目配置属性，按已有机器人配置提供真实AppID；本桥不访问或保存AppSecret。C2C回调用 `"private"`，频道回调用 `"channel"`。群成员OpenID、C2C用户OpenID和频道账号身份不同，不做猜测合并。参考 [腾讯botpy Message源码](https://github.com/tencent-connect/botpy/blob/master/botpy/message.py)。Webhook项目需在已有签名核验完成后转换消息对象；本项目不提供未验签公网入口。
 
-## QQ Agent
-
-当前正在运行的1.0.8专用插件不需要换成通用版。通用仓库提供 `memoryForEntry(chatKey,originalRow,botId,config)` 程序接口，在宿主本轮真实触发钩子调用，随后把`context`交给模型；这不是可直接放入plugins目录的替代插件。专用插件的完整宿主适配保留在另一个私密仓库。
-
 ## 联调验收
 
 按顺序实测：本人明确记忆 → 查询原ID/时间 → 更新后只查到新值 → A禁记但B仍能查本人同值 → 历史不能绕过禁记 → 重提不解锁 → 本人解锁 → 重新查原来源。引用/转发/媒体不可作为授权。还要验证服务停止、错误令牌与平台原消息撤回，不把错误当作空库或成功回复。
