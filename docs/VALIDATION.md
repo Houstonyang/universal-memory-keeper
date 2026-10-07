@@ -6,4 +6,6 @@ Node检查覆盖身份元组隔离、UUID/OpenID、本人事实版本、history�
 
 Python检查覆盖NoneBot原消息链、转发和媒体；腾讯SDK群/C2C/频道身份、带时区原时间、引用与附件；AstrBot原消息链、来源标记、请求上下文核验与异常。AstrBot导入使用API桩，未运行真实AstrBot；其余映射也使用合成SDK对象。
 
-不把语法或API桩测试称为真实平台兼容测试。AstrBot/NoneBot/Koishi/tencent botpy实际安装、SDK发QQ及模型生成验证待完成。没有授权替用户向QQ群发送联调消息；本次只做隔离本地验证。
+2026-10-07 文档更新时复跑：30 项 Node 测试及 13 项 Python 检查全部通过，测试使用隔离数据与本机环回 HTTP 服务，不发送真实 QQ 消息、不调用云端模型。
+
+AstrBot/NoneBot/Koishi/tencent botpy 的实际安装、SDK 消息事件与模型生成端到端验证仍待补充。核心及适配器代码实现完成、自动测试通过，与真实平台联调完成是不同状态。市场版的真实 QQ 验收和下载量也不作为本通用版的兼容性证据，详见 [交付形态说明](VARIANTS.md)。
