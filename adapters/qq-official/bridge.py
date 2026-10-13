@@ -18,11 +18,15 @@ def normalize_message(message, app_id, kind):
     # QQ 的机器人 at 前缀属于本轮地址，不是用户事实内容。
     import re
     content = re.sub(r"^<@!?[\w-]+>\s*", "", content).strip()
+    reference = getattr(message, "message_reference", None)
+    reference_id = reference.get("message_id") if isinstance(reference, dict) else getattr(reference, "message_id", None)
     return {"framework": "qq-official", "platform": "qq", "botId": str(app_id), "kind": kind,
             "conversationId": conversation, "messageId": str(message.id), "senderId": sender,
             "senderName": str(getattr(author, "username", "") or ""),
             "timestamp": epoch_ms(message.timestamp), "text": content, "self": bool(getattr(author, "bot", False)),
-            "quoted": bool(getattr(message, "message_reference", None)), "forwarded": False,
+            # botpy 即使没有引用也会构造空 _MessageRef 对象；不能按对象真假误判。
+            "quoted": reference_id is not None, "replyTo": str(reference_id) if reference_id is not None else None,
+            "forwarded": False,
             "media": ["attachment"] if getattr(message, "attachments", None) else []}
 
 async def memory_for(message, app_id, kind):

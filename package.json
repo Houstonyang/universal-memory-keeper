@@ -1,11 +1,11 @@
 {
   "name": "universal-memory-keeper",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "private": true,
   "description": "带来源核验、事实版本和本人禁记的通用机器人记忆核心与框架适配器",
   "license": "MIT",
   "engines": { "node": ">=20" },
-  "scripts": { "start": "node server.mjs", "test": "node --test tests/core.test.mjs tests/http.test.mjs" },
+  "scripts": { "start": "node server.mjs", "test": "node --test tests/core.test.mjs tests/http.test.mjs tests/retrieval.test.mjs" },
   "exports": { ".": "./core/runtime.mjs", "./client": "./clients/node.mjs" }
 }

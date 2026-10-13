@@ -5,6 +5,10 @@ def normalize_event(bot, event):
         raise ValueError("需要消息事件")
     segments = list(event.original_message)
     kinds = [str(segment.type) for segment in segments]
+    replies = [segment for segment in segments if segment.type == "reply"]
+    if len(replies) > 1:
+        raise ValueError("多条引用无法唯一核验")
+    reply_id = replies[0].data.get("id") if replies else None
     sender, bot_id = str(event.user_id), str(bot.self_id)
     group = getattr(event, "group_id", None)
     return {"framework": "nonebot2", "platform": "onebot-v11", "botId": bot_id,
@@ -13,6 +17,7 @@ def normalize_event(bot, event):
             "senderName": str(getattr(event.sender, "nickname", "") or ""),
             "timestamp": epoch_ms(event.time, seconds=True),
             "text": "".join(str(s.data.get("text", "")) for s in segments if s.type == "text").strip(),
-            "self": sender == bot_id, "quoted": "reply" in kinds,
+            "self": sender == bot_id, "quoted": bool(replies),
+            "replyTo": str(reply_id) if reply_id is not None else None,
             "forwarded": bool(set(kinds) & {"forward", "node"}),
             "media": [kind for kind in kinds if kind not in ("text", "at", "reply", "forward", "node")]}

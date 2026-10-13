@@ -1,6 +1,6 @@
 {
   "name": "koishi-plugin-universal-memory-keeper",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "main": "index.mjs",
   "peerDependencies": {"koishi": "^4.18.0"},

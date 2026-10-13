@@ -11,7 +11,7 @@ export function createMemoryServer({token,dataDir}) {
     const respond=(code,body)=>{res.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(body));};
     const supplied=Buffer.from(String(req.headers.authorization||''));
     if(supplied.length!==expected.length||!timingSafeEqual(supplied,expected))return respond(401,{ok:false,error:'未认证'});
-    if(req.method==='GET'&&req.url==='/health')return respond(200,{ok:true,version:'0.1.0'});
+    if(req.method==='GET'&&req.url==='/health')return respond(200,{ok:true,version:'0.1.1'});
     if(req.method!=='POST'||req.url!=='/v1/turn')return respond(404,{ok:false,error:'接口不存在'});
     try {
       let size=0;const chunks=[];

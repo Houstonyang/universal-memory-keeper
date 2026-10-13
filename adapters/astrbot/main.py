@@ -11,6 +11,10 @@ def normalize_event(event):
     if not isinstance(chain, list):
         raise ValueError("消息链缺失")
     kinds = [type(part).__name__.lower() for part in chain]
+    replies = [part for part in chain if type(part).__name__.lower() == "reply"]
+    if len(replies) > 1:
+        raise ValueError("多条引用无法唯一核验")
+    reply_id = getattr(replies[0], "id", None) if replies else None
     sender = str(event.get_sender_id())
     bot = str(event.get_self_id())
     # 原始消息链中的 Plain 文本不会被其他命令插件重写后的 message_str 冒充。
@@ -20,10 +24,11 @@ def normalize_event(event):
             "kind": "private" if private else "group", "conversationId": sender if private else str(event.get_group_id()),
             "messageId": str(obj.message_id), "senderId": sender, "senderName": str(event.get_sender_name()),
             "timestamp": epoch_ms(obj.timestamp, seconds=True), "text": text, "self": sender == bot,
-            "quoted": "reply" in kinds, "forwarded": "forward" in kinds,
-            "media": [kind for kind in kinds if kind not in ("plain", "at", "atall", "reply", "forward")]}
+            "quoted": bool(replies), "replyTo": str(reply_id) if reply_id is not None else None,
+            "forwarded": bool(set(kinds) & {"forward", "node", "nodes"}),
+            "media": [kind for kind in kinds if kind not in ("plain", "at", "atall", "reply", "forward", "node", "nodes")]}
 
-@register("universal_memory_keeper", "Houstonyang", "来源记忆、版本、本人遗忘与解锁", "0.1.0")
+@register("universal_memory_keeper", "Houstonyang", "来源记忆、版本、本人遗忘与解锁", "0.1.1")
 class UniversalMemoryKeeper(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -63,6 +68,8 @@ class UniversalMemoryKeeper(Star):
         if result.get("context"):
             from astrbot.core.agent.message import TextPart
             if hasattr(req, "extra_user_content_parts"):
+                if req.extra_user_content_parts is None:
+                    req.extra_user_content_parts = []
                 req.extra_user_content_parts.append(TextPart(text=result["context"]))
             else:
                 req.contexts.append({"role": "user", "content": result["context"]})

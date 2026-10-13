@@ -1,0 +1,35 @@
+{
+  "version": "0.1.1",
+  "date": "2026-10-14",
+  "baselineCommit": "5187e06dd547425381a20d2e4ca5c2972e6aebd3",
+  "nodeTests": { "total": 58, "passed": 58, "failed": 0, "originalTestsRetained": 30, "newRegressionTests": 28 },
+  "pythonTests": { "total": 22, "passed": 22, "failed": 0, "originalTestsRetained": 13, "additionalAdapterTests": 9 },
+  "actualLoopbackHttp": true,
+  "realFrameworkEndToEnd": false,
+  "actualQQSend": false,
+  "cloudModelCalled": false,
+  "data": "Synthetic events and isolated temporary storage only",
+  "commands": [
+    "node --test tests/core.test.mjs tests/http.test.mjs tests/retrieval.test.mjs",
+    "python -B tests/test_adapters.py"
+  ],
+  "coverage": [
+    "Recent default, explicit earliest, original timestamps and pagination",
+    "Literal topics, multiple terms and empty results without partial-token fallback",
+    "Current-user cutoff, invalid dates and historical status",
+    "Questions do not become facts; legacy question artifacts do not supersede declarations",
+    "Fact filtering before pagination and current-turn exclusion",
+    "Owner, framework, platform, bot, group and private scope separation",
+    "Structured quote IDs, source attribution, exact original responses and unavailable-source refusal",
+    "Ban, recall, media, forward, nested quote and metadata-conflict boundaries",
+    "Old storage reload and unchanged original records",
+    "SDK reference mappings and botpy empty reference objects"
+  ],
+  "limits": [
+    "Framework events and AstrBot hooks use fixtures and API stubs, not running framework instances",
+    "Outbound bot messages must be submitted by the trusted host before they can be resolved as quote sources",
+    "No automatic platform recall subscription or arbitrary model-output guard",
+    "AstrBot request-history reset remains; other AI integrations must honor command results and source policy",
+    "Strict lexical matching may return fewer candidates for vague queries"
+  ]
+}

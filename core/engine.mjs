@@ -3,6 +3,7 @@
 import { normalizeMessage, validScope, validIdentity } from './contracts.mjs';
 import { randomUUID } from 'node:crypto';
 import { tokenize, normText } from './text.mjs';
+import { literalQueryPhrases, factQuestion } from './retrieval.mjs';
 
 const clean = s => normText(s).replace(/[\p{P}\p{Z}\s]/gu, '');
 const dayOf = ts => new Date(ts+8*3600000).toISOString().slice(0,10);
@@ -155,12 +156,14 @@ function prepareRobotSources(state,rows) {
   robotSources.set(state,map);
 }
 function normalizeFacts(state, byMid) {
+  const questionIds=new Set();
   const records=[];
   for(const fact of state.facts) {
     const row=byMid.get(String(fact.sourceMessageId));
     if(!row || row.self || row.recalled || row.reply || row.media?.length
       || String(row.senderId)!==fact.ownerId || Number(row.ts)!==Number(fact.originalTime)
       || !normText(row.text).includes(normText(fact.content))) continue;
+    if(factQuestion(row.text)){questionIds.add(fact.id);continue;}
     const explicit=explicitSubject(row,fact.content,fact.topic);
     if(explicit?.ambiguous) continue;
     records.push({fact,row,explicit});
@@ -200,9 +203,9 @@ function normalizeFacts(state, byMid) {
     for(let i=0;i<ordered.length;i++) for(const fact of ordered[i].facts) {
       const next=ordered[i+1],previous=ordered[i-1];
       if(next) fact.supersededBy=next.facts[0].id;
-      else if(!fact.supersededBy || ids.has(fact.supersededBy)) fact.supersededBy=null;
+      else if(!fact.supersededBy || ids.has(fact.supersededBy) || questionIds.has(fact.supersededBy)) fact.supersededBy=null;
       // 无效或撤回的后续来源仍可使旧版本失效，不把旧值悄悄恢复成现状。
-      fact.supersedes=[...new Set([...(fact.supersedes||[]).filter(id=>!ids.has(id)),...(previous?.facts.map(f=>f.id)||[])])];
+      fact.supersedes=[...new Set([...(fact.supersedes||[]).filter(id=>!ids.has(id)&&!questionIds.has(id)),...(previous?.facts.map(f=>f.id)||[])])];
     }
   }
 }
@@ -408,14 +411,22 @@ export class ManagedMemory {
     const s = this.state(chatKey); this.source(chatKey); const rows=this.cache.get(chatKey)?.byMid||new Map();
     return s.facts.filter(f=> {
       const row=rows.get(String(f.sourceMessageId));
-      return row && !row.self && !row.reply && !row.media.length && String(row.senderId)===f.ownerId && row.ts===f.originalTime && normText(row.text).includes(normText(f.content)) && this.visible(row,s,{history}) && (!f.supersededBy || history) && (!f.expiresAt || f.expiresAt>this.now() || history);
+      return row && !row.self && !row.reply && !row.media.length && !factQuestion(row.text) && String(row.senderId)===f.ownerId && row.ts===f.originalTime && normText(row.text).includes(normText(f.content)) && this.visible(row,s,{history}) && (!f.supersededBy || history) && (!f.expiresAt || f.expiresAt>this.now() || history);
     }).map(f=>({...f,status:f.supersededBy?'superseded':f.expiresAt&&f.expiresAt<=this.now()?'expired':'active'}));
   }
-  query(chatKey, { query = '', userId = '', dayFrom = '', dayTo = '', limit = 5, offset = 0, history = false, archive = false, excludeMessageIds = [] } = {}) {
+  /** 引用仅按当前范围的真实 ID 定位；不以最近一条、相似正文或数字猜测。 */
+  quote(chatKey, messageId) {
+    const state=this.state(chatKey),row=this.cache.get(chatKey)?.byMid.get(String(messageId));
+    if(!row||row.reply||row.media.length||!row.text.trim()||!this.visible(row,state,{history:true}))return null;
+    return {...sourceLine(row,'quoted_original'),text:row.text};
+  }
+  query(chatKey, { query = '', userId = '', dayFrom = '', dayTo = '', limit = 5, offset = 0, history = false, archive = false, order = 'recent', factsOnly = false, excludeMessageIds = [] } = {}) {
     validChat(chatKey); const state=this.state(chatKey);
     for(const day of [dayFrom,dayTo]) if(day&&(!/^\d{4}-\d{2}-\d{2}$/.test(String(day))||!Number.isFinite(Date.parse(day+'T00:00:00Z'))||new Date(day+'T00:00:00Z').toISOString().slice(0,10)!==day)) throw Error('日期须为有效YYYY-MM-DD');
     if(dayFrom&&dayTo&&dayFrom>dayTo) throw Error('开始日期不能晚于结束日期');
+    if(!['recent','earliest'].includes(order))throw Error('检索顺序须为recent或earliest');
     const q=normText(query).slice(0,200), tokens=tokenize(q).filter(t=>t.length>=2);
+    const phrases=literalQueryPhrases(query),needles=phrases.length?phrases:q.split(/\s+/u).filter(Boolean);
     const facts=factsBySource(state),excluded=new Set(excludeMessageIds.map(String));
     const candidates=[];
     for(const row of this.source(chatKey)) {
@@ -423,16 +434,20 @@ export class ManagedMemory {
       if (excluded.has(String(row.mid))) continue;
       if(userId&&String(row.senderId)!==String(userId)) continue;
       const day=dayOf(Number(row.ts)); if(dayFrom&&day<dayFrom||dayTo&&day>dayTo) continue;
-      const text=normText(row.text), f=(facts.get(String(row.mid))||[]).find(f=>String(row.senderId)===f.ownerId && row.ts===f.originalTime && normText(row.text).includes(normText(f.content)));
-      const searchable=text+' '+normText(f?.topic||'');
+      const text=normText(row.text), f=!factQuestion(row.text)?(facts.get(String(row.mid))||[]).find(f=>String(row.senderId)===f.ownerId && row.ts===f.originalTime && normText(row.text).includes(normText(f.content))):null;
+      if(factsOnly&&(!f||row.self||row.reply||row.media.length))continue;
+      const searchable=text+' '+(f?factLabels(f).map(normText).join(' '):'');
       const matched=tokens.filter(t=>searchable.includes(t));
-      if(q&&!searchable.includes(q)&&!matched.length) continue;
+      // 全话题/明确词组必须完整出现，不用单个 bigram 冒充命中。
+      if(needles.some(needle=>!searchable.includes(needle)))continue;
       let score=searchable.includes(q)&&q?20:matched.length*2;
       if(f&&!f.supersededBy&&(!f.expiresAt||f.expiresAt>this.now())) score+=3;
       candidates.push({row,f,score,expiry:f?.expiresAt||inferExpiry(row)});
     }
-    candidates.sort((a,b)=>archive?Number(a.row.ts)-Number(b.row.ts):b.score-a.score||Number(b.row.ts)-Number(a.row.ts));
+    candidates.sort((a,b)=>order==='earliest'
+      ? Number(a.row.ts)-Number(b.row.ts)||Number(a.row.id)-Number(b.row.id)
+      : Number(b.row.ts)-Number(a.row.ts)||Number(b.row.id)-Number(a.row.id));
     const count=Math.trunc(Math.min(80,Math.max(1,Number(limit)||5))), skip=Math.trunc(Math.max(0,Number(offset)||0));
-    return { ok:true, chatKey, total:candidates.length, nextOffset:skip+count, hasMore:skip+count<candidates.length, hits:candidates.slice(skip,skip+count).map(({row,f,score,expiry})=>({...sourceLine(row,f?.supersededBy?'superseded':expiry&&expiry<=this.now()?'expired':f?'active':oldVersions.get(state)?.get(String(row.mid))||'archive'),score,topic:f?.topic||null,memoryId:f?.id||null,expiresAt:expiry||null,supersedes:f?.supersedes||[],supersededBy:f?.supersededBy||null})), note:'来自当前会话原始记录。archive表示聊天原文，不一定是当前事实；过时条目仅在history=true时返回。禁记与撤回条目不返回；机器人自己的发言不能冒充本人事实来源。' };
+    return { ok:true, chatKey, order, dateRange:{dayFrom:dayFrom||null,dayTo:dayTo||null}, total:candidates.length, nextOffset:skip+count, hasMore:skip+count<candidates.length, hits:candidates.slice(skip,skip+count).map(({row,f,score,expiry})=>({...sourceLine(row,f?.supersededBy?'superseded':expiry&&expiry<=this.now()?'expired':f?'active':oldVersions.get(state)?.get(String(row.mid))||'archive'),score,topic:f?.topic||null,memoryId:f?.id||null,expiresAt:expiry||null,supersedes:f?.supersedes||[],supersededBy:f?.supersededBy||null})), note:'来自当前会话原始记录，默认按原始时间从近到远；earliest才从最早开始。archive表示聊天原文，不一定是当前事实；过时条目仅在history=true时返回。禁记与撤回条目不返回；机器人自己的发言不能冒充本人事实来源。' };
   }
 }

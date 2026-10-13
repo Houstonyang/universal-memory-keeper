@@ -57,6 +57,7 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(result["timestamp"], 1790812800000)
         self.assertEqual(result["messageId"], "-234")
         self.assertTrue(result["quoted"])
+        self.assertEqual(result["replyTo"], "123")
         self.assertEqual(result["text"], "原文")
 
     def test_nonebot_forward_and_media(self):
@@ -92,7 +93,34 @@ class AdapterTests(unittest.TestCase):
         message.message_reference = {"message_id": "old"}
         result = self.qq.normalize_message(message, "app", "group")
         self.assertTrue(result["quoted"])
+        self.assertEqual(result["replyTo"], "old")
         self.assertEqual(result["media"], ["attachment"])
+
+    def test_nonebot_signed_reply_id_is_preserved(self):
+        event = types.SimpleNamespace(get_type=lambda: "message", original_message=[types.SimpleNamespace(type="reply", data={"id": -123})],
+                                     message_id=-234, user_id=123456, time=1790812800, group_id=234567,
+                                     sender=types.SimpleNamespace(nickname=""))
+        result = self.nb.normalize_event(types.SimpleNamespace(self_id=345678), event)
+        self.assertEqual(result["replyTo"], "-123")
+
+    def test_nonebot_multiple_replies_are_not_guessed(self):
+        event = types.SimpleNamespace(get_type=lambda: "message", original_message=[types.SimpleNamespace(type="reply", data={"id": i}) for i in (1, 2)])
+        with self.assertRaisesRegex(ValueError, "引用"):
+            self.nb.normalize_event(types.SimpleNamespace(self_id=345678), event)
+
+    def test_qq_empty_sdk_reference_object_is_not_a_quote(self):
+        message = self.qq_message()
+        message.message_reference = types.SimpleNamespace(message_id=None)
+        result = self.qq.normalize_message(message, "app", "channel")
+        self.assertFalse(result["quoted"])
+        self.assertIsNone(result["replyTo"])
+
+    def test_qq_sdk_reference_object_preserves_id(self):
+        message = self.qq_message()
+        message.message_reference = types.SimpleNamespace(message_id="source-uuid")
+        result = self.qq.normalize_message(message, "app", "channel")
+        self.assertTrue(result["quoted"])
+        self.assertEqual(result["replyTo"], "source-uuid")
 
     def test_qq_rejects_naive_time(self):
         message = self.qq_message()
@@ -120,6 +148,22 @@ class AdapterTests(unittest.TestCase):
         self.assertTrue(result["forwarded"])
         self.assertEqual(result["media"], ["image"])
 
+    def test_astrbot_reply_id_and_plain_body_have_separate_sources(self):
+        reply = type("Reply", (), {"id": -123, "message_str": "不要把引用正文拼成本轮请求"})()
+        plain = type("Plain", (), {"text": "只复述原句"})()
+        result = self.astr.normalize_event(self.astr_event([reply, plain]))
+        self.assertEqual(result["replyTo"], "-123")
+        self.assertEqual(result["text"], "只复述原句")
+
+    def test_astrbot_multiple_replies_are_not_guessed(self):
+        with self.assertRaisesRegex(ValueError, "引用"):
+            self.astr.normalize_event(self.astr_event([type("Reply", (), {"id": i})() for i in (1, 2)]))
+
+    def test_astrbot_nodes_are_forwarded_not_personal_text(self):
+        for kind in ("Node", "Nodes"):
+            result = self.astr.normalize_event(self.astr_event([type(kind, (), {})()]))
+            self.assertTrue(result["forwarded"])
+
     def test_astrbot_hook_uses_verified_context(self):
         plugin = self.astr.UniversalMemoryKeeper(object(), {})
         async def retrieve(_):
@@ -138,6 +182,28 @@ class AdapterTests(unittest.TestCase):
         plugin.retrieve = retrieve
         with self.assertRaises(RuntimeError):
             asyncio.run(plugin.before_llm(object(), types.SimpleNamespace(contexts=[])))
+
+    def test_astrbot_hook_accepts_uninitialized_extra_parts(self):
+        plugin = self.astr.UniversalMemoryKeeper(object(), {})
+        async def retrieve(_):
+            return {"context": "引用来源已核验"}
+        plugin.retrieve = retrieve
+        req = types.SimpleNamespace(contexts=[], extra_user_content_parts=None)
+        asyncio.run(plugin.before_llm(object(), req))
+        self.assertEqual(req.extra_user_content_parts[0].text, "引用来源已核验")
+
+    def test_astrbot_exact_quote_command_stops_before_model(self):
+        plugin = self.astr.UniversalMemoryKeeper(object(), {})
+        async def retrieve(_):
+            return {"command": True, "reply": "青竹"}
+        plugin.retrieve = retrieve
+        stopped = []
+        event = types.SimpleNamespace(is_at_or_wake_command=True, is_private_chat=lambda: False,
+                                      plain_result=lambda text: text, stop_event=lambda: stopped.append(True))
+        async def responses():
+            return [value async for value in plugin.on_message(event)]
+        self.assertEqual(asyncio.run(responses()), ["青竹"])
+        self.assertEqual(stopped, [True])
 
     def test_missing_source_time_cannot_be_synthesized(self):
         event = self.astr_event([type("Plain", (), {"text": "原文"})()])
@@ -170,6 +236,12 @@ class AdapterTests(unittest.TestCase):
                 asyncio.run(client.memory_turn(event, url, token))
                 result = asyncio.run(client.memory_turn(dict(event, messageId="second", text="饮料偏好"), url, token))
                 self.assertEqual(result["hits"][0]["messageId"], "first")
+                self.assertEqual(asyncio.run(client.memory_turn(dict(event, messageId="question", text="我的饮料偏好是什么"), url, token))["hits"][0]["messageId"], "first")
+                asyncio.run(client.memory_turn(dict(event, messageId="bot-source", senderId="fixture-bot", self=True, text="青竹"), url, token))
+                quoted = asyncio.run(client.memory_turn(dict(event, messageId="quote-question", quoted=True, replyTo="bot-source", text="只复述原句"), url, token))
+                self.assertTrue(quoted["command"])
+                self.assertEqual(quoted["reply"], "青竹")
+                self.assertEqual(quoted["quote"]["source"]["senderId"], "fixture-bot")
                 with self.assertRaises(Exception):
                     asyncio.run(client.memory_turn(dict(event, messageId="third"), url, "wrong-token-1234567890-python"))
             finally:

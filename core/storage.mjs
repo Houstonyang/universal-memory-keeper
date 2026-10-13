@@ -22,7 +22,7 @@ export function jsonStores(dataDir) {
     append(key,row) {
       const rows=this.list(key),old=rows.find(r=>r.mid===row.mid);
       if(old) {
-        if(old.text!==row.text||old.senderId!==row.senderId||old.ts!==row.ts||old.self!==row.self||JSON.stringify(old.reply)!==JSON.stringify(row.reply)||JSON.stringify(old.media)!==JSON.stringify(row.media))throw Error('来源 ID 冲突');
+        if(old.text!==row.text||old.senderId!==row.senderId||old.ts!==row.ts||old.self!==row.self||old.forwarded!==row.forwarded||old.replyTo!==row.replyTo||JSON.stringify(old.reply)!==JSON.stringify(row.reply)||JSON.stringify(old.media)!==JSON.stringify(row.media))throw Error('来源 ID 冲突');
         return old;
       }
       const next=normalizeMessage({...row,id:(rows.at(-1)?.id||0)+1});rows.push(next);write(file('messages',key),{chatKey:key,rows});return next;

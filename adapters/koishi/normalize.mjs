@@ -2,10 +2,14 @@
 export function normalizeSession(session) {
   if(!Array.isArray(session.elements))throw Error('消息链缺失');
   const kinds=session.elements.map(e=>e.type),sender=String(session.userId),botId=String(session.selfId);
+  const references=[session.quote?.id,...session.elements.filter(e=>e.type==='quote').map(e=>e.attrs?.id)].filter(id=>id!=null).map(String);
+  const ids=[...new Set(references)];
+  if(ids.length>1)throw Error('多条引用无法唯一核验');
   return {framework:'koishi',platform:session.platform,botId,kind:session.isDirect?'private':'channel',
     conversationId:session.isDirect?sender:session.channelId,messageId:session.messageId,senderId:sender,
     senderName:session.event.user?.name||'',timestamp:Number(session.event.timestamp),
     text:session.elements.filter(e=>e.type==='text').map(e=>e.attrs.content||'').join('').trim(),
-    self:sender===botId,quoted:!!session.quote||kinds.includes('quote'),forwarded:kinds.some(k=>['message','figure','forward'].includes(k)),
+    self:sender===botId,quoted:!!session.quote||kinds.includes('quote'),replyTo:ids[0]??null,
+    forwarded:kinds.some(k=>['message','figure','forward'].includes(k)),
     media:kinds.filter(k=>!['text','at','quote','message','figure','forward'].includes(k))};
 }
